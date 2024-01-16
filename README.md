@@ -1,1 +1,1 @@
-# wasm-editor
+# summarization-editor
