@@ -1,6 +1,7 @@
 use log;
 use serde::{Deserialize, Serialize};
 use serde_json::Result;
+use std::env;
 use yew::prelude::*;
 
 #[derive(Serialize, Deserialize)]
@@ -16,7 +17,13 @@ fn app() -> Html {
     let counter = use_state(|| 0 as u64);
     let last_counter = use_state(|| 0 as u64);
 
-    let mut client = wasm_sockets::EventClient::new("ws://0.0.0.0:8765")
+    let server_host = env::var("SERVER_HOST_WS").unwrap_or("0.0.0.0".to_string());
+    let server_port = env::var("SERVER_PORT_WS").unwrap_or("8765".to_string());
+
+    let address = format!("ws://{}:{}", server_host, server_port);
+    log::info!("connection to server in {:?}", address);
+
+    let mut client = wasm_sockets::EventClient::new(address.as_str())
         .expect("It was not possible to initialize the websocket");
     client.set_on_error(Some(Box::new(|error| {
         log::error!("{:#?}", error);

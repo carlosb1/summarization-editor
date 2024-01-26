@@ -1,0 +1,22 @@
+version: '3'
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - 80:80
+    depends_on:
+      - backend
+    environment:
+      - SERVER_HOST_WS=backend
+      - SERVER_PORT_WS=8765
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - 8765:8765
+    environment:
+      - SERVER_HOST_WS=0.0.0.0
+      - SERVER_PORT_WS=8765
