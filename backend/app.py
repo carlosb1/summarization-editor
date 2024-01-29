@@ -4,12 +4,14 @@ import json
 import logging
 import torch
 import websockets
+import asyncio
+import threading
 from transformers import BertTokenizerFast, EncoderDecoderModel
 from torch.multiprocessing import set_start_method, Queue, Process
 
 logging.basicConfig(
     format="%(message)s",
-    level=logging.DEBUG,
+    level=logging.INFO,
 )
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -18,10 +20,9 @@ tokenizer = BertTokenizerFast.from_pretrained(ckpt)
 model = EncoderDecoderModel.from_pretrained(ckpt).to(device)
 logging.info("Initialized logger")
 
-def generate_response(new_content):
-    parsed = json.loads(new_content)
-    text = parsed['value']
-    identifier = parsed['identifier']
+
+def generate_response(message):
+    (text, identifier) = message
     print(f"starting summarization process")
     summarization = generate_summary(text)
     return {"value": summarization,"typ": "text" , "identifier": identifier}
@@ -34,12 +35,43 @@ def generate_summary(text):
    output = model.generate(input_ids, attention_mask=attention_mask)
    return tokenizer.decode(output[0], skip_special_tokens=True)
 
+
+async def callback(websocket, message):
+    response = generate_response(message)
+    logging.info(f"I received the message {response}")
+    await websocket.send(json.dumps(response))
+
+def between_callback(websocket, message):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    loop.run_until_complete(callback(websocket, message))
+    loop.close()
+
+global buffer
+buffer = ""
+global thread
+thread = None
 # Handle incoming messages
 async def handle_message(websocket, path):
     async for message in websocket:
-        response = generate_response(message)
-        logging.info(f"I received the message {response}")
-        await websocket.send(json.dumps(response))
+        global buffer
+        global thread
+        parsed = json.loads(message)
+        text = parsed['value']
+        buffer += text
+        size_buffer = len(buffer)
+
+        logging.info(f"Buffer {buffer}")
+        if size_buffer != 0 and size_buffer > 10 and (thread == None or not thread.is_alive()):
+            logging.info("Running background thread!!!")
+            thread = threading.Thread(target=between_callback, args=(websocket, (buffer, parsed['identifier']),))
+            thread.start()
+
+        #between_callback(websocket, message)
+        # response = generate_response(message)
+        # logging.info(f"I received the message {response}")
+        # await websocket.send(json.dumps(response))
 
 
 # Start the WebSocket server

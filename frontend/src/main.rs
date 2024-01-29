@@ -1,7 +1,8 @@
 use log;
 use serde::{Deserialize, Serialize};
 use serde_json::Result;
-use std::env;
+use web_sys::wasm_bindgen::JsCast;
+use web_sys::{EventTarget, HtmlInputElement};
 use yew::prelude::*;
 
 #[derive(Serialize, Deserialize)]
@@ -17,8 +18,9 @@ fn app() -> Html {
     let counter = use_state(|| 0 as u64);
     let last_counter = use_state(|| 0 as u64);
 
-    let server_host = env::var("SERVER_HOST_WS").unwrap_or("0.0.0.0".to_string());
-    let server_port = env::var("SERVER_PORT_WS").unwrap_or("8765".to_string());
+    //TODO check how to insert this in runtime.
+    let server_host: String = std::env::var("SERVER_HOST_WS").unwrap_or("0.0.0.0".to_string());
+    let server_port: String = std::env::var("SERVER_PORT_WS").unwrap_or("8765".to_string());
 
     let address = format!("ws://{}:{}", server_host, server_port);
     log::info!("connection to server in {:?}", address);
@@ -51,13 +53,19 @@ fn app() -> Html {
         )
     })()));
 
-    let onchange = Callback::from({
+    let input_value_handle = use_state(String::default);
+    let input_value = (*input_value_handle).clone();
+
+    let oninput = Callback::from({
         let dialog_value = dialog_value.clone();
+        let input_value_handle = input_value_handle.clone();
         let counter = counter.clone();
         move |input_event: InputEvent| {
             if let Some(content) = input_event.data() {
-                log::info!("{:}", content);
-                let all_message = (*dialog_value).clone() + &content.clone();
+                let value = input_value_handle.get(0..).unwrap_or("");
+                //let all_message = value.to_owned() + &content.clone();
+                let all_message = value.to_owned();
+                input_value_handle.set(all_message.clone());
                 let messg = Message {
                     value: all_message.clone(),
                     typ: "text".to_string(),
@@ -73,7 +81,7 @@ fn app() -> Html {
     });
     html! {
         <div>
-                <textarea id="editor" oninput={onchange}></textarea>
+                <textarea id="editor" oninput={oninput} value={input_value}></textarea>
                 <textarea id="dialog" disabled=true value={(*dialog_value).clone()}> </textarea>
         </div>
     }
